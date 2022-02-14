@@ -1,0 +1,423 @@
+---
+title: "coursework3"
+author: "Bunmi"
+date: "26/03/2021"
+output: 
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## INTRODUCTION
+
+The data set consists of 2384 observations and 47 variables of police incidence which were obtained from January 2016 to January 2017.
+
+This analysis would investigate police activities in Texas in the United State.It would explore the factors that leads to arrest,the crime rates and determine if there is an evidence of racial disparity in police activities .The following areas are going to be explored. 
+
+* What is the monthly incident rate?
+* Distribution of arrest by subject race. 
+* Are traffic stop racially motivated?
+
+ 
+
+
+
+```{r data ,echo=FALSE ,message =FALSE,include=FALSE}
+#load the data and convert empty data to na 
+mydata <- read.csv("../Assignment/37-00049_UOF-P_2016_prepped.csv",na.strings = c(""))
+#remove the first row 
+mydata <- mydata[-1,]
+#convert empty Null to na 
+mydata [mydata == "NULL"] <- NA
+#view the data structure
+str(mydata)
+#change date format to date 
+#tell r my date format first
+mydata$INCIDENT_DATE <- as.Date(mydata$INCIDENT_DATE, format =  "%m/%d/%y")
+#correct the date 
+#get incident month in words by extracting from date
+library(tidyverse)
+mydata$INCIDENT_MONTH <- format(mydata$INCIDENT_DATE,"%m")
+```
+
+### Monthly Incident Rate
+
+
+```{r  crime rate,message =FALSE,echo=FALSE}
+#crime montly distribution
+#library(tidyverse)
+mydata$INCIDENT_MONTH <- format(mydata$INCIDENT_DATE,"%b")
+month_G1 <- mydata %>%
+  drop_na(INCIDENT_MONTH) %>%
+  group_by(INCIDENT_MONTH)%>%
+   summarise(Cout= n()) 
+# #plot monthly incident to see if there is a pattern 
+
+monthly_crime <- month_G1 %>% ggplot(aes(x=INCIDENT_MONTH,y=Cout))
+z <- monthly_crime+ geom_line(stat="identity",color ="purple",group =1) + 
+  geom_point(size = 3, color = "steelblue") +
+labs(title= "Monthly Incident Count" ,y ="Number of Incidents" , x= "Months")
+library(plotly)
+ggplotly(z)
+
+```
+
+
+
+```{r  crime rate per race ,message =FALSE,echo=FALSE}
+#crime montly distribution
+#library(tidyverse)
+mydata$INCIDENT_MONTH <- format(mydata$INCIDENT_DATE,"%m")
+month_race <- mydata %>%
+  group_by(INCIDENT_MONTH,SUBJECT_RACE)%>%
+   summarise(Cout= n())%>% drop_na()
+# #plot monthly incident to see if there is a pattern 
+
+monthly_race_incid <- month_race  %>%ggplot(aes(x=INCIDENT_MONTH,y=Cout))+ geom_line(data= filter(month_race,SUBJECT_RACE=="Black"),stat="identity",group =1,size=1,aes(color="purple"))+geom_line(data= filter(month_race,SUBJECT_RACE=="White"),stat="identity",group =1,size=1,aes(color="coral"))+
+geom_line(data= filter(month_race,SUBJECT_RACE=="Hispanic"),stat="identity",group =1,size=1,aes(color="blue"))
+#incident for other races are relatively small 
+#make r recognise color through guide and map legend
+monthly_race_incid +scale_color_identity(name = "Subject Race",
+                          breaks = c("purple", "coral", "blue"),
+                          labels = c("Black", "White", "Hispanic"),
+                          guide = "legend")+
+labs(title= "Monthly Incident Count" ,y ="Number", x= "Months" )
+
+
+
+```
+
+```{r porportion of race arrest  during an incident,message =FALSE,warning=FALSE,fig.align='center',echo=FALSE}
+
+library(scales)
+
+library(plotly)
+
+
+ sub_race_count <- table(factor(mydata$SUBJECT_WAS_ARRESTED),factor(mydata$SUBJECT_RACE))
+ 
+ #find percentage of columns(subject race) and round up by 2 dp
+sub_race <- round(100*prop.table(sub_race_count,2),2)
+sub_race <-as.data.frame(sub_race)
+sub_race <- sub_race  %>% rename(SUBJECT_WAS_ARRESTED =Var1,
+                                 SUBJECT_RACE=Var2)
+sub_race$label <- paste0(sub_race$label, "\n",
+                         round(sub_race$Freq,2), "%")
+# 
+sub_race_count_plot <- sub_race %>% ggplot(aes(x=SUBJECT_RACE, y= Freq ,fill = SUBJECT_WAS_ARRESTED ))+ geom_bar(stat = "identity",position ="stack")+ 
+ #geom_text(label = paste(Freq,"%"))+
+ labs(title= "Percentage of Subject Race Incidents by arrest" ,y ="Percentage Incidents" , x= "Subject Race" , fill ="subject arrested")
+  
+
+ggplotly(sub_race_count_plot)
+#plot the graph
+
+```
+
+
+```{r race likely to have an incident,message =FALSE,warning=FALSE,fig.align='center',echo=FALSE}
+
+
+ 
+ #find percentage of columns(subject race) and round up by 2 dp
+sub_race_arrest <- mydata %>% filter(SUBJECT_WAS_ARRESTED =="Yes") %>% group_by(SUBJECT_RACE)%>% summarise(number = n()) %>% 
+  drop_na()%>%
+  arrange(desc(number))%>%
+  mutate(percent = 100*number/sum(number))
+# 
+sub_race_arrest_plot <- sub_race_arrest %>% ggplot(aes(reorder(x=SUBJECT_RACE,-percent), y= percent ))+ geom_bar(stat = "identity",fill= "yellow",color="blue")+ 
+ #geom_text(label = paste(Freq,"%"))+
+ labs(title= "Percentage of Arrested Subject by Race" ,y ="Percentage Incidents" , x= "Subject Race")
+  
+
+ggplotly(sub_race_arrest_plot)
+#plot the graph
+
+```
+
+
+
+```{r incident reason count,message =FALSE,warning=FALSE,echo=FALSE  }
+# cateogry data ,sum wouldnt work
+#is there racial bias in Traffic stop
+incid_rsn <- mydata %>% group_by(INCIDENT_REASON) %>% 
+  count() %>%
+  arrange(desc(n))
+
+
+
+incid_rsn_plot <- incid_rsn %>% head(5) %>% 
+  ggplot(aes(reorder(x=INCIDENT_REASON,n),y= n, fill=n))+
+  geom_bar(stat = "identity", color = "black") +  
+scale_fill_gradient(low="orange", high="blue")
+incid_rsn_plot + labs(title = "Top Five Incident Reason", x= "Incident Reason",y="Count", fill= "Count")
+
+```
+
+
+```{r traffic stop pie plot,message =FALSE,warning=FALSE,echo=FALSE  }
+# cateogry data ,sum wouldnt work
+#is there racial bias in Traffic stop
+library(scales) 
+vehicle_stop <- mydata %>% 
+  filter(INCIDENT_REASON == "Traffic Stop" ) %>%
+  group_by(SUBJECT_RACE)%>%
+  drop_na(SUBJECT_RACE)%>%
+  summarise(number =n())%>%
+  arrange(desc(SUBJECT_RACE)) %>% #calc prop
+    mutate(prop = round(number * 100 / sum(number), 1),
+           lab.ypos = cumsum(prop) - 0.5*prop)
+#put label % line by line
+vehicle_stop$label <- paste0(vehicle_stop$label, "\n",
+                         round(vehicle_stop$prop,1), "%")
+
+vehicle_stop_plot <- vehicle_stop %>% ggplot(aes(x=2,y=prop,fill= SUBJECT_RACE))+
+  geom_bar(width =1, stat = "identity", color = "black") +  
+coord_polar("y", start = 0,direction = 1)+
+  geom_text(aes(y =lab.ypos ,label = label), color = "white") + xlim(0.5, 2.5) +
+  theme_void()
+vehicle_stop_plot +scale_fill_manual(values =c("plum2", "salmon1","gold2","maroon1"))
+```
+
+
+
+
+```{r ofcer histo by gender ,message =FALSE,warning=FALSE,echo=FALSE  }
+
+#count number of officier years in the force
+mydata$OFFICER_YEARS_ON_FORCE_cont <- as.numeric(mydata$OFFICER_YEARS_ON_FORCE)
+library(plotly)
+officer_yr_incid <- mydata %>% ggplot(aes(x=OFFICER_YEARS_ON_FORCE_cont)) +geom_histogram(fill= "bisque3",color="black",binwidth = 2)+
+  scale_x_continuous(breaks = seq(0,36,2), limits = c(0,36))+
+  theme_bw() +labs(title="Officer years in the force",y="Density",x="years")
+ggplotly(officer_yr_incid) 
+
+```
+
+
+
+```{r ofcer yrs box plot ,message =FALSE,warning=FALSE,echo=FALSE  }
+mydata$OFFICER_YEARS_ON_FORCE_cont <- as.numeric(mydata$OFFICER_YEARS_ON_FORCE)
+officer_yr_incid_box <- mydata %>% ggplot(aes(x=OFFICER_RACE,y=OFFICER_YEARS_ON_FORCE_cont)) +
+  geom_boxplot(notch=TRUE,fill= "cyan4",alpha =0.7)+
+  theme_bw() 
+ggplotly(officer_yr_incid_box) 
+
+```
+
+
+
+```{r subj weapon disp ,message =FALSE,warning=FALSE,echo=FALSE  }
+#count number of first type of force used by officiers in the force
+first_officer_force <- mydata %>% 
+  count(TYPE_OF_FORCE_USED1)%>% 
+  arrange(desc(n)) %>% 
+  drop_na()
+
+first_officer_force_plot <- first_officer_force %>% 
+  head(10)%>% 
+  ggplot(aes(reorder(x=TYPE_OF_FORCE_USED1,n), y= n))+ 
+  geom_bar(stat="identity", color= "black" , fill="salmon1")+ 
+  labs(title ="The top ten type of force used", x= "First Type of force used", y= "count")+ coord_flip() 
+
+first_officer_force_plot + theme_bw()
+
+
+```
+
+
+
+```{r officer weapon disp ,message =FALSE,warning=FALSE,echo=FALSE  }
+#TYPE OF FORCE USED ON SUBJECT RACE
+force_on_sub_race <- mydata %>% filter(TYPE_OF_FORCE_USED1 =="Weapon display at Person" )%>% group_by(SUBJECT_RACE) %>%
+summarise(number =n())%>%mutate(prop = round(number * 100 / sum(number), 1))%>%
+drop_na()
+
+
+#label
+force_on_sub_race$percentage <- paste0(force_on_sub_race$percentage, "\n",
+                         round(force_on_sub_race$prop,1), "%")
+
+sub_type1_weap_drw <- force_on_sub_race %>%
+  ggplot(aes(x=reorder(SUBJECT_RACE,number),y=percentage))+ geom_bar(stat = "identity", fill = "lightblue",  color = "black")
+ sub_type1_weap_drw + geom_text(aes(label=percentage))+
+labs(x = "Subject Race",y = "Percent", title  = "Weapon drawn by Police at Subject Race distribution")
+ text <-mydata %>%filter(TYPE_OF_FORCE_USED1 =="Weapon display at Person" )%>%
+   select(SUBJECT_RACE,SUBJECT_WAS_ARRESTED)
+ #text
+ #table(text$SUBJECT_WAS_ARRESTED,text$SUBJECT_RACE)
+```
+
+
+
+```{r 1st type of force ,message =FALSE,warning=FALSE,echo=FALSE  }
+ #which  OFficer race is likely to draw weapon
+ 
+ force_by_offic_race <- mydata %>% filter(TYPE_OF_FORCE_USED1 =="Weapon display at Person" )%>% group_by(OFFICER_RACE) %>%
+summarise(number =n())%>%mutate(prop = round(number * 100 / sum(number), 1))%>%
+drop_na()
+#label a percentage column
+force_by_offic_race$percentage <- paste0(force_by_offic_race$percentage, "\n",
+                         round(force_by_offic_race$prop,1), "%")
+
+force_by_offic_race_plot <- force_by_offic_race %>%
+  ggplot(aes(x=reorder(OFFICER_RACE,number),y=percentage))+ geom_bar(stat = "identity",  color = "black",fill="coral")
+ force_by_offic_race_plot + geom_text(aes(label=percentage))+
+labs(x = "Officer Race",y = "Percent", title  = "Weapon drawn by Police distribution")
+ 
+```
+
+### Incident Injury 
+
+The figures below shows the count of injury observed from both officer and subject race distribution.The first figure shows the officer injury by race .It can be seen that white officers had the highest count of injury at about 160 and the lowest was injury observed was from Asian officer which was notably small. 
+
+The second figure shows the injury count of different race subject.The highest injury was observed from Black subjects at about 343 ,the second highest observed was from white subject and Asian subject had no injury.
+
+```{r officer injury/sub injury ,message =FALSE,warning=FALSE,echo=FALSE  }
+officer_hs <- mydata %>% count(OFFICER_INJURY)%>% 
+  arrange(desc(n)) %>% 
+  drop_na()
+
+#race explanatory , injury response
+sub_hs <- mydata %>%group_by(SUBJECT_RACE)%>%
+  count(SUBJECT_INJURY)%>% 
+  arrange(desc(n)) %>% 
+  drop_na()
+officier_injury <-ggplot(mydata,aes(x=OFFICER_RACE, fill = OFFICER_INJURY)) + geom_bar(position ="dodge")+
+scale_y_continuous(breaks = seq(0,1500,250), limits = c(0,1500))
+officier_injury+ labs(title = "Officer Race Injury Count", y= "Count", x="Officer Race")
+
+subject_injury <- mydata %>% drop_na(SUBJECT_RACE)%>%
+  arrange(desc(SUBJECT_RACE))%>%
+  ggplot(aes(x=SUBJECT_RACE,fill= SUBJECT_INJURY,y=..count..))+geom_bar(position ="dodge")+
+scale_y_continuous(breaks = seq(0,1000,250), limits = c(0,1000))
+subject_injury+labs(title = "Subject Race Injury Count", y= "Count", x="Subject Race")
+
+sub_inj <- ftable( mydata$SUBJECT_RACE~ mydata$SUBJECT_INJURY)
+sub_inj_count <- round(prop.table(sub_inj,2),2)
+sub_inj_count <- as.data.frame(sub_inj_count)
+
+
+```
+
+
+```{r crime ,message =FALSE,warning=FALSE,echo=FALSE,include=FALSE  }
+sub_crime <- mydata %>% count(SUBJECT_OFFENSE)%>% 
+  arrange(desc(n)) %>% 
+  drop_na()%>% mutate(Total=cumsum(n))
+pattern <- "^Drug Possession /|Drug Possession "
+s <- c("Drug Possession  - Misdemeanor","Drug Possession  - Felony")
+str_detect(s, "^Drug")
+
+mydata$grp_crime <- mydata$SUBJECT_OFFENSE %>%
+  str_replace("^Assa\\D+","Assualt") %>%
+  str_replace("^Warr\\D+","Warrant")%>%
+  str_replace("^Resisting Arrest\\D+|Resisting Arrest|Evading Arrest\\D+","Resisting Arrest") %>%
+  
+  str_replace("^Drug Possession\\D+|Drug Possession|Drug Possession[.-]|Man/Del/Dangerous Drug\\D+","Drug Possession ")%>%
+  str_replace("^Traffic Violation\\D+|Traffic Violation","Traffic Violation") %>%
+  str_replace("^Warrant/|Warrant","Warrant")%>%
+  str_replace("^Burglary of a Vehicle\\D+|Burglary of a Vehicle|Burglary\\D+|Burglary","Burglary") %>%
+  str_replace("^Public Intoxication\\D+|Public Intoxication ","Public Intoxication")%>%
+  str_replace("^Other Misdemeanor Arrest\\D+|Other Misdemeanor Arrest","Misdemeanor Arrest") %>%
+  str_replace("^Other Felony Arrest\\D+|Other Felony Arrest","Felony")%>%
+  str_replace("^DWI\\D+|DWI|DWLI|DUI|DUI\\D+","Driving under influence") %>%
+  str_replace("^Theft\\D+|Theft","Theft")%>%
+  str_replace("^Fail to ID\\D+","Fail to ID")%>%
+  str_replace("^Resisting Search\\D+|Resisting Search","Resisting Search") %>%
+  str_replace("^Robbery\\D+","Robbery")%>%
+  str_replace("^APOWW\\D+","APOWW")%>%
+  str_replace("^Discharge Firearm\\D+","Discharge Firearm")%>%
+  str_replace("^Unauthorize Use Vehicle\\D+","Unauthorize Use Vehicle") %>%
+  str_replace("^Disorderly Conduct\\D+","Disorderly Conduct")%>%
+  str_replace("^Crim Trespas\\D+","Tresspass")
+
+#remove no arrest
+
+
+```
+
+
+
+```{r division incident,message =FALSE,warning=FALSE,echo=FALSE }
+library(leaflet)
+mydata$Latitude <- as.numeric(mydata$LOCATION_LATITUDE)
+mydata$Longitude <- as.numeric(mydata$LOCATION_LONGITUDE)
+#group incident by division
+division_incid <-mydata %>% 
+  group_by(DIVISION,SUBJECT_RACE)%>%
+  summarise(number=n())%>%drop_na()%>%
+  mutate(prop=100*round(number/sum(number),3))
+
+division_incid_plot <-division_incid %>% ggplot(aes(x=DIVISION,y=prop,fill=SUBJECT_RACE))+
+  geom_bar(stat="identity",color="grey") +coord_flip()+theme_bw()+
+  scale_fill_manual(values=c("yellow","blue","cyan2","slategray1","pink","plum1"))
+ggplotly(division_incid_plot)
+
+
+
+
+```
+
+
+```{r crime map ,message =FALSE,warning=FALSE,echo=FALSE  }
+
+
+library(htmltools)
+library(leaflet)
+mydata$Latitude <- as.numeric(mydata$LOCATION_LATITUDE)
+mydata$Longitude <- as.numeric(mydata$LOCATION_LONGITUDE)
+
+
+mymap_crime <- leaflet(mydata) %>%
+ addTiles() %>%
+   addCircleMarkers(data = mydata[mydata$grp_crime=="Drug Possession ",], group = "Drugs",col="red",label = ~htmlEscape("Drugs"))%>%
+  addCircleMarkers(data = mydata[mydata$grp_crime=="Theft",], group = "Theft",color="yellow",label = ~htmlEscape("Theft"))%>%
+addCircleMarkers(data = mydata[mydata$grp_crime=="Assualt",], group = "Assualt",color="#fee090",label = ~htmlEscape("Assualt"))%>%
+  addCircleMarkers(data = mydata[mydata$grp_crime=="Warrant",], group = "Warrant",color="purple",label = ~htmlEscape("Warrant"))%>%
+addCircleMarkers(data = mydata[mydata$grp_crime=="Burglary",], group = "Burglary",color="orange",label = ~htmlEscape("Burglary"))%>%
+addCircleMarkers(data = mydata[mydata$grp_crime=="Tresspass",], group = "Tresspass",color="peach",label = ~htmlEscape("Tresspass"))%>%
+addCircleMarkers(data = mydata[mydata$grp_crime=="APOWW",], group = "APOWW",color="light blue",label = ~htmlEscape("APOWW"))%>%
+addCircleMarkers(data = mydata[mydata$grp_crime=="Robbery",], group = "Robbery",color="#4575b4",label = ~htmlEscape("Robbery"))%>%
+addCircleMarkers(data = mydata[mydata$grp_crime=="Resisting Arrest",], group = "Resisting Arrest",color="#74add1",label = ~htmlEscape("Resisting Arrest"))
+
+
+mymap_crime%>%  addLayersControl(
+    baseGroups = c("OSM (default)", "Toner Lite"),
+    #define layer group into overlay object
+    overlayGroups = c("Theft","Drugs", "Assualt","Burglary","Tresspass","APOWW", "Warrant", "Resisting Arrest","Robbery"),
+    #layer options to show one layer at a time
+    options = layersControlOptions(collapsed = TRUE))
+
+
+```
+
+The map below shows the distribution of incident reason in the city of Dallas .The traffic stop distribution seems to be spread with a few concentration in certain parts of the city.It also shows a high distribution of arrest in the city .
+
+```{r incident reason map ,message =FALSE,warning=FALSE,echo=FALSE  }
+incid_rsn <- mydata %>% group_by(INCIDENT_REASON) %>% 
+  count() %>%
+  arrange(desc(n))
+
+ 
+
+incident_map <-leaflet(mydata) %>%
+  addTiles() %>% 
+addCircleMarkers(lat=subset(mydata,INCIDENT_REASON=='Traffic Stop')$Latitude, lng=subset(mydata, INCIDENT_REASON=='Traffic Stop')$Longitude ,color = "red",label = ~htmlEscape('Traffic Stop'),group='Traffic Stop') %>%
+  addCircleMarkers(lat=subset(mydata,INCIDENT_REASON=='Arrest')$Latitude, lng=subset(mydata, INCIDENT_REASON=='Arrest')$Longitude ,color = "blue",label = ~htmlEscape('Arrest'),group='Arrest')%>%
+  addCircleMarkers(lat=subset(mydata, INCIDENT_REASON=='Call for Cover')$Latitude, lng=subset(mydata, INCIDENT_REASON=='Call for Cover')$Longitude, color = "yellow",opacity = 0.2,label = ~htmlEscape('Call for Cover'),group= 'Call for Cover')%>%
+  addCircleMarkers(lat=subset(mydata, INCIDENT_REASON=='Crime in Progress')$Latitude, lng=subset(mydata, INCIDENT_REASON=='Crime in Progress')$Longitude, color = "purple",opacity = 0.2 ,label = ~htmlEscape('Crime in Progress'),group= 'Crime in Progress')%>%
+  addCircleMarkers(lat=subset(mydata,INCIDENT_REASON=='Service Call')$Latitude, lng=subset(mydata, INCIDENT_REASON=='Service Call')$Longitude ,color = "pink",label = ~htmlEscape('Service Call'),group= 'Service Call')
+
+incident_map %>%addLayersControl(
+    baseGroups = c("OSM (default)", "Toner Lite"),
+    #define layer group into overlay object
+    overlayGroups = c('Traffic Stop','Arrest', 'Call for Cover',"Crime in Progress","Service Call"),
+    #layer options to show one layer at a time
+    options = layersControlOptions(collapsed = TRUE))
+
+```
+
